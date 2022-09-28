@@ -1,3 +1,6 @@
+# ID: 11508393
+# NAME: Ping-Chun Lee
+
 import pandas as pd
 import regex as re
 import numpy as np
@@ -51,10 +54,18 @@ def extract_info(df):
 
   return df
 
-#example on loading text file (You are given 3 differrent text file, You need to load those file separately and pass them through extract_df function to get 3 separate dataframe)
-df = pd.read_csv("/content/CAN Bus log - injection of FFF as the speed reading.log", sep=" ", 
+# --- TASK 1 ---
+# get dataframe of injection of speed reading
+df_inj_spd = pd.read_csv("./CAN Bus log - injection of FFF as the speed reading.log", sep=" ", 
                  header=None, names=["Time_Stamp", "Bus_id","PID_info"])
+df_inj_spd = extract_info(df_inj_spd)
 
-#call function to create dataframe using relevant information from the text file
-df = extract_info(df)
+# get dataframe of injection of RPM
+df_inj_rpm = pd.read_csv("./CAN Bus log - injection of RPM readings.log", sep=" ", 
+                 header=None, names=["Time_Stamp", "Bus_id","PID_info"])
+df_inj_rpm = extract_info(df_inj_rpm)
 
+# get dataframe of pure dataset
+df_inj_NA = pd.read_csv("./CAN bus log - no injection of messages.log", sep=" ", 
+                 header=None, names=["Time_Stamp", "Bus_id","PID_info"])
+df_inj_NA = extract_info(df_inj_NA)
