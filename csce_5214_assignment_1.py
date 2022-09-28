@@ -3,9 +3,6 @@ import regex as re
 import numpy as np
 
 def extract_info(df):
-
-
-
   #function to strip PID and its message  
   def pid_split(pid_str):
     pid_keywords = '[^#]+'
