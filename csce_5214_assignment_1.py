@@ -4,68 +4,97 @@
 import pandas as pd
 import regex as re
 import numpy as np
+import matplotlib.pyplot as plt
 
-def extract_info(df):
-  #function to strip PID and its message  
-  def pid_split(pid_str):
-    pid_keywords = '[^#]+'
-    try:
-        splitted_str = re.findall(pid_keywords, pid_str)
-    except KeyError:
-        splitted_str = pid_str
-    return splitted_str
-
-  #split PID message into PID and message
-  for index, row in df.iterrows():
-    df.loc[df.index[index], 'PID'] = pid_split(df.loc[df.index[index], 'PID_info'])[0]
-    df.loc[df.index[index], 'message'] = pid_split(df.loc[df.index[index], 'PID_info'])[1]
-
-  #drop irrelevant information
-  #select only data points with PID = 254 (Speed) and PID = 115 (RPM)
-  #select only last four characters of the message
-  df = df.drop(['Bus_id','PID_info','Time_Stamp'],axis=1)
-  df = df.loc[(df['PID'] == '254') | (df['PID'] == '115')]
-  df['message'] = df['message'].str[-4:]
-  df = df.reset_index(drop=True)
-
-  #create label based on RPM and SPEED values
-  for index, row in df.iterrows():
-    if df.loc[df.index[index], 'PID'] == '254':
-      if int((df.loc[df.index[index], 'message']),16) >= 4095:
-        df.loc[df.index[index], 'Attack'] = 1
-      else:
-        df.loc[df.index[index], 'Attack'] = 0
-      df.loc[df.index[index], 'message'] = (int((df.loc[df.index[index], 'message']),16) * 0.62137119) /100
-    else:
-      if int((df.loc[df.index[index], 'message']),16) >= 65535:
-        df.loc[df.index[index], 'Attack'] = 1
-      else:
-        df.loc[df.index[index], 'Attack'] = 0
-      df.loc[df.index[index], 'message'] = (int((df.loc[df.index[index], 'message']),16)* 2)
-
-  # Get one hot encoding of columns PID
-  one_hot = pd.get_dummies(df['PID'])
-  # Drop column B as it is now encoded
-  df = df.drop('PID',axis = 1)
-  # Join the encoded df
-  df = df.join(one_hot)
-  df = df[['115', '254', 'message', 'Attack']]
-  df.rename(columns = {'115':'RPM', '254':'Speed'}, inplace = True)
-
-  return df
+def getData(filename):
+  canData=[] #List to store teh can data
+  f = open(filename)
+  #read_file = reader(f)
+  read_file =f.readlines()
+  
+  #file = list(read_file)
+  speed_list = []
+  rpm_list = []
+  spd = 0
+  rpm = 0
+  i = 0
+  for row in read_file:
+    #Change the positions of the values if needed
+    record = {'stamp':row[1:18], 'PID':row[25:28], 'const1':row[29:33], 
+'change':row[33:41],'value':int(row[41:45], 16), 'value2':0 ,'attack':0}
+    
+    if record["PID"] == '254': #Processing of speed
+      if record["value"] >= 4095:
+        record["attack"] = 1
+      record['value'] =  (record['value'] * 0.62137119) /100
+      spd = record['value']
+    speed_list.append(spd)
+      #print("i == ",i, "speed= ", record['value'])
+    
+    if record["PID"] == '115': #Processing of RPM 
+      if record["value"] >= 65535:
+        record["attack"] = 1
+      record['value'] =  (record['value'] * 2)
+      rpm = record['value']
+    rpm_list.append(rpm)
+      #print("i == ",i, "RPM= ", record['value'])
+    i = i+1   
+    canData.append(record)
+    record={}
+    
+  f.close()
+  
+  #Change the return value to speed or RPM if you want to return the other lists
+  return speed_list, rpm_list, pd.DataFrame(data=canData)
 
 # --- TASK 1 ---
+speed_all_cases = []
+rpm_all_cases = []
 # get dataframe of injection of speed reading
-df_inj_spd = pd.read_csv("./CAN Bus log - injection of FFF as the speed reading.log", sep=" ", 
-                 header=None, names=["Time_Stamp", "Bus_id","PID_info"])
-df_inj_spd = extract_info(df_inj_spd)
+s, r, df_inj_spd = getData("./CAN Bus log - injection of FFF as the speed reading.log")
+speed_all_cases.append(s)
+rpm_all_cases.append(r)
 
 # get dataframe of injection of RPM
-df_inj_rpm = pd.read_csv("./CAN Bus log - injection of RPM readings.log", sep=" ", 
-                 header=None, names=["Time_Stamp", "Bus_id","PID_info"])
-df_inj_rpm = extract_info(df_inj_rpm)
+s, r, df_inj_rpm = getData("./CAN Bus log - injection of RPM readings.log")
+speed_all_cases.append(s)
+rpm_all_cases.append(r)
 
 # get dataframe of pure dataset
-df_inj_NA = pd.read_csv("./CAN bus log - no injection of messages.log", sep=" ", 
-                 header=None, names=["Time_Stamp", "Bus_id","PID_info"])
-df_inj_NA = extract_info(df_inj_NA)
+s, r, df_inj_NA = getData("./CAN bus log - no injection of messages.log")
+speed_all_cases.append(s)
+rpm_all_cases.append(r)
+
+# --- TASK 2 Step 1 ---
+cases = [
+    "speed injection: speed", 
+    "speed injection: RPM", 
+    "speed injection: speed vs RPM", 
+    "RPM injection: speed", 
+    "RPM injection: RPM", 
+    "RPM injection: speed vs RPM", 
+    "no injection: speed", 
+    "no injection: RPM", 
+    "no injection: speed vs RPM", 
+]
+
+inj_spd_x = np.arange(len(speed_all_cases[0]))
+inj_rpm_x = np.arange(len(speed_all_cases[1]))
+inj_NA_x  = np.arange(len(speed_all_cases[2]))
+
+x_ary = [inj_spd_x, inj_spd_x, speed_all_cases[0],
+         inj_rpm_x, inj_rpm_x, speed_all_cases[1],
+         inj_NA_x,  inj_NA_x,  speed_all_cases[2]]
+y_ary = [speed_all_cases[0], rpm_all_cases[0], rpm_all_cases[0],
+         speed_all_cases[1], rpm_all_cases[1], rpm_all_cases[1],
+         speed_all_cases[2], rpm_all_cases[2], rpm_all_cases[2]]
+
+fig, axs = plt.subplots(3, 3, figsize=(10, 10), constrained_layout=True)
+for ax, case, i in zip(axs.flat, cases, range(9)):
+      #plt.subplot(3, 3, i+1)
+      ax.scatter(x_ary[i], y_ary[i])
+      ax.set_title(cases[i])
+
+plt.show()
+
+# --- TASK 2 Step 2 ---
